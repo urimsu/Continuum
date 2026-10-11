@@ -7,7 +7,6 @@ ALLOWED_PROGRAMS = {
     "lazygit",
     "python3",
     "zen",
-    "zed-editor",
 }
 
 BLACKLISTED_PROGRAMS = {

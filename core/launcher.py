@@ -1,30 +1,72 @@
+import json
 import subprocess
+from pathlib import Path
 
 from config.whitelist import ALLOWED_PROGRAMS, BLACKLISTED_PROGRAMS
 
+SESSION_FILE = Path.home() / ".local/state/continuum/processes.json"
 
-def launch_process(name: str, cwd: str) -> bool:
+TERMINAL_PROGRAMS = {"nvim", "htop", "btop", "vim", "nano"}
+
+
+def launch_processes() -> bool:
     """
-    Startet ein erlaubtes Terminalprogramm in einem neuen Alacritty-Fenster.
+    Liest gespeicherte Prozesse aus der JSON-Datei
+    und startet erlaubte Programme erneut.
 
-    Args:
-        name: Name des Programms, z. B. 'btop'.
-        cwd: Arbeitsverzeichnis des Programms.
+    Terminalprogramme werden in Kitty geöffnet.
+    Das ursprüngliche Arbeitsverzeichnis wird übernommen.
 
     Returns:
-        True, wenn der Start des Terminalprozesses erfolgreich
-        angestoßen wurde, andernfalls False.
+        True, wenn alle ausgewählten Prozesse gestartet
+        werden konnten, andernfalls False.
     """
-    if name not in ALLOWED_PROGRAMS or name in BLACKLISTED_PROGRAMS:
-        print(f"Programm '{name}' ist nicht erlaubt.")
-        return False
 
     try:
-        subprocess.Popen(
-            ["alacritty", "--working-directory", cwd, "-e", name]
-        )
-        return True
+        with SESSION_FILE.open("r", encoding="utf-8") as file:
+            processes = json.load(file)
 
-    except OSError as error:
-        print(f"Programm konnte nicht gestartet werden: {error}")
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"Session konnte nicht geladen werden: {error}")
         return False
+
+    success = True
+
+    for process in processes:
+        name = process.get("name")
+        cwd = process.get("cwd")
+        cmdline = process.get("cmdline")
+
+        if name not in ALLOWED_PROGRAMS:
+            continue
+
+        if name in BLACKLISTED_PROGRAMS:
+            continue
+
+        if not cmdline:
+            continue
+
+        if not cwd or not Path(cwd).is_dir():
+            print(f"Ungültiges Arbeitsverzeichnis: {cwd}")
+            success = False
+            continue
+
+        try:
+            if name in TERMINAL_PROGRAMS:
+                subprocess.Popen(
+                    ["kitty", "--directory", cwd, "--", *cmdline]
+                )
+
+            else:
+                subprocess.Popen(
+                    cmdline,
+                    cwd=cwd
+                )
+
+            print(f"Gestartet: {name}")
+
+        except OSError as error:
+            print(f"Fehler beim Starten von {name}: {error}")
+            success = False
+
+    return success
