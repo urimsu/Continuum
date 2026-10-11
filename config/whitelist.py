@@ -6,7 +6,7 @@ ALLOWED_PROGRAMS = {
     "nano",
     "lazygit",
     "python3",
-    "zen",
+#    "zen",
 }
 
 BLACKLISTED_PROGRAMS = {

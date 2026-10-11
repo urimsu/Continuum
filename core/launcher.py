@@ -1,6 +1,9 @@
 import json
 import subprocess
 from pathlib import Path
+import os
+import shutil
+
 
 from config.whitelist import ALLOWED_PROGRAMS, BLACKLISTED_PROGRAMS
 
@@ -8,7 +11,35 @@ SESSION_FILE = Path.home() / ".local/state/continuum/processes.json"
 
 TERMINAL_PROGRAMS = {"nvim", "htop", "btop", "vim", "nano"}
 
+def get_default_terminal() -> str | None:
+    """
+    Ermittelt einen verfügbaren Terminalemulator.
 
+    Returns:
+        Name oder Pfad des Terminalemulators.
+        None, wenn keiner gefunden wurde.
+    """
+
+    terminal = os.environ.get("TERMINAL")
+
+    if terminal and shutil.which(terminal):
+        return terminal
+
+    terminals = [
+        "ghostty",
+        "kitty",
+        "alacritty",
+        "foot",
+        "wezterm",
+        "gnome-terminal",
+        "konsole"
+    ]
+
+    for name in terminals:
+        if shutil.which(name):
+            return name
+
+    return None
 def launch_processes() -> bool:
     """
     Liest gespeicherte Prozesse aus der JSON-Datei
@@ -53,10 +84,18 @@ def launch_processes() -> bool:
 
         try:
             if name in TERMINAL_PROGRAMS:
-                subprocess.Popen(
-                    ["kitty", "--directory", cwd, "--", *cmdline]
-                )
+                terminal = get_default_terminal()
 
+                if terminal is None:
+                    print("Kein Terminalemulator gefunden.")
+                    success = False
+                    continue
+
+                subprocess.Popen(
+                    [terminal, *cmdline],
+                    cwd=cwd,
+                    start_new_session=True
+                )
             else:
                 subprocess.Popen(
                     cmdline,
