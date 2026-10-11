@@ -37,7 +37,8 @@ def save():
             tmp_int_positive+=1
         else:
             tmp_int_negative+=1
-    print(processes)
+    for i in processes:
+        print(i)
     core.sessions.save_processes(processes)
     print(f"Session saved {tmp_int_positive} Processes and discarded {tmp_int_negative}")
 
