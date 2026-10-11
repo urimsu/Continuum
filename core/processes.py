@@ -1,8 +1,99 @@
 """Funktionen zum Auslesen von Linux-Prozessinformationen über /proc."""
 
 import sys
+import os
 from pathlib import Path
 
+SYSTEM_PROCESSES = {
+    # Systemdienste
+    "systemd",
+    "systemctl",
+    "(sd-pam)",
+    "cupsd",
+    "dconf-service",
+    "fcitx5",
+    "bt-agent",
+    "power-profiles-",
+    "udiskie",
+    "uwsm",
+    "start-hyprland",
+
+    # Desktop-Dienste
+    "at-spi-bus-laun",
+    "at-spi2-registr",
+    "gnome-keyring-d",
+    "quickshell",
+    "wl-paste",
+    "inotifywait",
+    "socat",
+    "waitpid",
+    "fusermount3",
+
+    # Browser-Hilfsprozesse
+    "Isolated Servic",
+    "Isolated Web Co",
+    "Privileged Cont",
+    "RDD Process",
+    "Socket Process",
+    "Utility Process",
+    "Web Content",
+    "WebExtensions",
+    "chrome_crashpad",
+    "forkserver",
+
+    # Sonstige
+    "localsearch-3",
+    "localsearch-ext",
+    "codex-code-mode",
+
+    # Displayserver / Window Manager
+    "Hyprland",
+    "Xwayland",
+    "sway",
+    "waybar",
+    "quickshell",
+
+    # Audio
+    "pipewire",
+    "pipewire-pulse",
+    "wireplumber",
+
+    # Systemtools
+    "journalctl",
+    "systemctl",
+    "wl-copy",
+    "wl-paste",
+    "sh",
+    "bash",
+    "zsh",
+
+    # Weitere Hintergrundprozesse
+    "dbus-broker",
+    "NetworkManager",
+    "systemd",
+    "polkitd",
+    "udisksd",
+    "upowerd",
+}
+
+SYSTEM_PREFIXES = (
+    "systemd",
+    "kworker",
+    "ksoftirqd",
+    "migration/",
+    "cpuhp/",
+    "irq/",
+    "rcu",
+    "nvidia",
+    "nv_",
+    "watchdog",
+    "idle_inject",
+    "dbus-",
+    "xdg-",
+    "gvfs",
+    "omarchy-",
+    "at-spi",
+)
 
 def get_process_name(pid: int) -> str | None:
     """
@@ -144,3 +235,52 @@ def get_all_processes() -> list[int]:
             pids.append(int(entry.name))
 
     return sorted(pids)
+
+def get_all_processes_names() -> list[str]:
+    """
+    Ermittelt laufende Benutzerprogramme unter Linux.
+
+    Filtert:
+    - Kernel-Threads
+    - Prozesse anderer Benutzer
+    - Bekannte Systemprozesse
+    - Hintergrund- und Hilfsprozesse
+    - Doppelte Prozessnamen
+
+    Returns:
+        list[str]: Alphabetisch sortierte Prozessnamen.
+    """
+    process_names = set()
+    current_uid = os.getuid()
+
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+
+        try:
+            # Nur Prozesse des aktuellen Benutzers
+            if entry.stat().st_uid != current_uid:
+                continue
+
+            # Kernel-Threads ausschließen
+            cmdline = (entry / "cmdline").read_bytes()
+
+            if not cmdline:
+                continue
+
+            name = (entry / "comm").read_text().strip()
+
+            # Systemprozesse ausschließen
+            if name in SYSTEM_PROCESSES:
+                continue
+
+            # Systemprozess-Präfixe ausschließen
+            if name.startswith(SYSTEM_PREFIXES):
+                continue
+
+            process_names.add(name)
+
+        except (OSError, ProcessLookupError):
+            continue
+
+    return sorted(process_names)
