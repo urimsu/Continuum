@@ -4,8 +4,8 @@ from pathlib import Path
 import os
 import shutil
 
-
-from config.whitelist import ALLOWED_PROGRAMS, BLACKLISTED_PROGRAMS
+import config.whitelist
+ALLOWED_PROGRAMS = config.whitelist.get_allowed_programs()
 
 SESSION_FILE = Path.home() / ".local/state/continuum/processes.json"
 
@@ -69,9 +69,6 @@ def launch_processes() -> bool:
         cmdline = process.get("cmdline")
 
         if name not in ALLOWED_PROGRAMS:
-            continue
-
-        if name in BLACKLISTED_PROGRAMS:
             continue
 
         if not cmdline:
