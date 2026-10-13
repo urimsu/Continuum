@@ -1,93 +1,224 @@
 
-"""Command line entry point."""
+"""Command line entry point for Continuum."""
+
 import argparse
 import sys
 
 import commands
 
-def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(prog="continuum", description="Save and restore terminal sessions")
-    result.add_argument("-V", "--version", action="version", version="continuum Version 1_test") # {__version__}")
+VERSION = "1_test"
 
-    sub = result.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("save", help="Detect terminal windows and save their active foreground programs")
-    sub.add_parser("list", help="List locally saved sessions")
-    sub.add_parser("restore", help="Preview and interactively restore the latest saved session")
-    sub.add_parser("status", help="Show detected terminal windows and the latest saved session")
+# ---------------------------------------
+# Command Configuration
+# ---------------------------------------
 
-    whitelist = sub.add_parser("whitelist", help="Manage Whitelists")
-    # Whitelist-Unterbefehle
-    whitelist_sub = whitelist.add_subparsers(dest="action", required=False)
+COMMANDS = [
+    {
+        "name": "save",
+        "help": "Save active terminal programs",
+        "handler": commands.save,
+    },
+    {
+        "name": "list",
+        "help": "List locally saved sessions",
+        "handler": commands.list_sessions,
+    },
+    {
+        "name": "restore",
+        "help": "Restore the latest saved session",
+        "handler": commands.restore,
+    },
+    {
+        "name": "status",
+        "help": "Show current terminal status",
+        "handler": commands.status,
+    },
+    {
+        "name": "whitelist",
+        "help": "Manage whitelisted programs",
+        "handler": commands.whitelist,
 
-    whitelist_sub.add_parser("ls", help="List whitelisted programs")
+        "subcommands": [
+            {
+                "name": "ls",
+                "help": "List whitelisted programs",
+                "handler": commands.whitelist_ls,
+            },
+            {
+                "name": "add",
+                "help": "Add a program to the whitelist",
+                "handler": commands.whitelist_add,
+                "arguments": [
+                    {
+                        "flags": ["program"],
+                        "help": "Program to add",
+                    }
+                ],
+            },
+            {
+                "name": "remove",
+                "help": "Remove a program from the whitelist",
+                "handler": commands.whitelist_remove,
+                "arguments": [
+                    {
+                        "flags": ["program"],
+                        "help": "Program to remove",
+                    }
+                ],
+            },
+        ],
+    },
+    {
+        "name":"ssh",
+        "help":"Establish or Change ssh connections",
+        "handler": commands.show,
 
-    add = whitelist_sub.add_parser("add", help="Add program to whitelist")
-    add.add_argument("program", help="Program to add")
+        "subcommands": [
+            {
+                "name":"new",
+                "aliases":["add"],
+                "help":"Add a SSH connections",
+                "handler":commands.new_ssh,
 
-    remove = whitelist_sub.add_parser("remove", help="Remove program from whitelist")
-    remove.add_argument("program", help="Program to remove")
+                "arguments":[
+                    {
+                        "flags":["--name"],
+                        "required": True,
+                        "help":"set Device Name"
+                    },
+                    {
+                        "flags":["--host"],
+                        "required": True,
+                        "help":"set Device Host"
+                    },
+                    {
+                        "flags":["--user"],
+                        "required": True,
+                        "help":"set Device Username (for SSH)"
+                    },
+                    {
+                        "flags":["--port"],
+                        "type": int,
+                        "default":22,
+                        "help":"SSH port setzen"
+                    },
+                ]
+            },
+            {
+                "name": "remove",
+                "aliases": ["rm", "delete"],
+                "help": "Remove an SSH device",
+                "handler": commands.delete_ssh,
+                "arguments": [
+                    {
+                        "flags": ["name"],
+                        "help": "Name of the SSH device or the host"
+                    }
+                ]
+            }
+        ]
+    },
+]
 
-    return result
 
+# ---------------------------------------
+# Generic Parser Builder
+# ---------------------------------------
+
+def register_commands(subparsers, definitions):
+    """
+    Recursively register commands and subcommands.
+
+    Args:
+        subparsers: argparse subparser collection.
+        definitions: List of command configurations.
+    """
+
+    for definition in definitions:
+        parser = subparsers.add_parser(
+            definition["name"],
+            aliases=definition.get("aliases", []),
+            help=definition.get("help", ""),
+            description=definition.get("help", "")
+        )
+
+        # Register arguments
+        for argument in definition.get("arguments", []):
+            options = argument.copy()
+            flags = options.pop("flags")
+            parser.add_argument(*flags, **options)
+
+        # Register handler
+        if "handler" in definition:
+            parser.set_defaults(
+                handler=definition["handler"]
+            )
+
+        # Register nested commands
+        if "subcommands" in definition:
+            nested = parser.add_subparsers(
+                dest="action"
+            )
+
+            register_commands(
+                nested,
+                definition["subcommands"]
+            )
+
+
+def create_parser() -> argparse.ArgumentParser:
+    """Create the Continuum CLI parser."""
+
+    parser = argparse.ArgumentParser(
+        prog="continuum",
+        description="Save and restore terminal sessions"
+    )
+
+    parser.add_argument(
+        "-V", "--version",
+        action="version",
+        version=f"continuum {VERSION}"
+    )
+
+    subparsers = parser.add_subparsers(
+        dest="command",
+        required=True
+    )
+
+    register_commands(subparsers, COMMANDS)
+
+    return parser
+
+
+# ---------------------------------------
+# Entry Point
+# ---------------------------------------
 
 def main() -> None:
-    cli = parser()
+    """Parse arguments and execute the selected command."""
+
+    parser = create_parser()
     argv = sys.argv[1:]
-    # Clap provides `continuum help [COMMAND]`; keep that built-in interface.
-    if argv == ["help"]:
-        cli.print_help()
-        return
-    if len(argv) == 2 and argv[0] == "help" and argv[1] in {"save", "list", "restore", "status","whitelist"}:
-        parser_for_command = argparse.ArgumentParser(prog=f"continuum {argv[1]}")
-        descriptions = {
-            "save": "Detect terminal windows and save their active foreground programs",
-            "list": "List locally saved sessions",
-            "restore": "Preview and interactively restore the latest saved session",
-            "status": "Show detected terminal windows and the latest saved session",
-            "whitelist": "Show all currently whitelisted programs",
-            "whitelist ls": "List running programs available to add to the whitelist",
-            "whitelist add": "Add a program to the whitelist",
-            "whitelist remove": "Remove a program from the whitelist",
-        }
 
-        if argv == ["help"]:
-            cli.print_help()
-            return
+    # Support: continuum help [COMMAND ...]
+    if argv and argv[0] == "help":
+        argv = argv[1:] + ["--help"]
 
-        if argv and argv[0] == "help":
-            command = " ".join(argv[1:])
+    args = parser.parse_args(argv)
 
-        if command in descriptions:
-            parser_for_command = argparse.ArgumentParser(
-                prog=f"continuum {command}",
-                description=descriptions[command]
-            )
-
-        if command in {"whitelist add", "whitelist remove"}:
-            parser_for_command.add_argument(
-                "program",
-                help="Name of the program"
-            )
-
-        parser_for_command.print_help()
-        return
-    args = cli.parse_args(argv)
     try:
-        if args.command == "list":
-            commands.list_sessions()
-        else:
-            {
-                "save": lambda: commands.save(),
-                "restore": lambda: commands.restore(),
-                "status": lambda: commands.status(),
-                "whitelist": lambda: {
-                    None:lambda: commands.whitelist(),
-                    "ls": lambda: commands.whitelist_ls(),
-                    "add": lambda: commands.whitelist_add(args.program),
-                    "remove": lambda: commands.whitelist_remove(args.program)
-                }[args.action]()
-            }[args.command]() 
+        handler = args.handler
+
+        # Pass only declared command arguments
+        kwargs = vars(args).copy()
+
+        kwargs.pop("handler", None)
+        kwargs.pop("command", None)
+        kwargs.pop("action", None)
+
+        handler(**kwargs)
+
     except Exception as exc:
         print(f"continuum: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
@@ -95,3 +226,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
