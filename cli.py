@@ -23,6 +23,15 @@ COMMANDS = [
         "name": "list",
         "help": "List locally saved sessions",
         "handler": commands.list_sessions,
+
+        "subcommands": [
+            {
+                "name": "change",
+                "aliases":["update"],
+                "help": "Change session data (if error)",
+                "handler": commands.update_session,
+            }
+        ]
     },
     {
         "name": "restore",

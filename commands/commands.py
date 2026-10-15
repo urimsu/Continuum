@@ -144,8 +144,24 @@ def restore():
     print(f"\n{CYAN}{'─' * 55}{RESET}")
     print(f"  {GRAY}Total processes:{RESET} {CYAN}{len(processes)}{RESET}")
     print(f"{CYAN}{'─' * 55}{RESET}\n")
-
+    #core.launcher.change_name_or_path()
     core.launcher.launch_processes()
 
+def update_session() -> None:
+    """
+    Aktualisiert die Attribute einer gespeicherten Session.
 
+    Ermöglicht das Ändern des Namens oder Pfads einer Session.
+    Zeigt den Fortschritt und eine Erfolgsmeldung an.
+
+    Returns:
+        None
+    """
+    print(f"\n{CYAN}◆ Change Session Attributes{RESET}")
+    print(f"{GRAY}  Modify session name or path...{RESET}\n")
+
+    core.launcher.change_name_or_path()
+
+    print(f"\n{GREEN}✔ Done!{RESET}")
+    print(f"{GRAY}  Session attributes updated successfully.{RESET}\n")
 
